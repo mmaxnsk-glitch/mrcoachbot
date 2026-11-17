@@ -1,0 +1,137 @@
+name: Lichess Bot Runner
+
+concurrency:
+  group: lichess-bot-runner
+  cancel-in-progress: false # false — чтобы новый запуск не убивал текущий, а ждал
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Bot Mode'
+        type: choice
+        required: true
+        options:
+          - normal
+          - matchmaking
+          - tournament
+      tournament_id:
+        description: 'Tournament ID (if tournament mode)'
+        type: string
+        required: false
+      team_id:
+        description: 'Team ID (optional)'
+        type: string
+        required: false
+      password:
+        description: 'Tournament password (optional)'
+        type: string
+        required: false
+  schedule:
+    - cron: '0 */6 * * *'  # Запуск каждые 6 часов
+  push:
+    branches: [ main ]
+    paths:
+      - '**.py'
+      - 'config.yml'
+
+permissions:
+  actions: write
+  contents: read # contents: write здесь не нужен, хватит read
+
+jobs:
+  bot-runner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 355  # 5 часов 55 минут (лимит GitHub)
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install tenacity pyyaml
+
+      - name: Setup Engines
+        run: |
+          chmod +x engines/stockfish
+
+      - name: Inject Lichess Bot Token
+        env:
+          LICHESS_TOKEN: ${{ secrets.LICHESS_TOKEN }}
+        run: |
+          python3 << 'EOF'
+          import os, yaml
+          token = os.environ.get("LICHESS_TOKEN")
+          if not token:
+              print("ERROR: LICHESS_TOKEN secret is missing!")
+              exit(1)
+          with open("config.yml","r") as f:
+              config = yaml.safe_load(f) or {}
+          config["token"] = token
+          with open("config.yml","w") as f:
+              yaml.dump(config,f, default_flow_style=False)
+          print("✅ Token injected successfully")
+          EOF
+
+      - name: Launch Bot
+        run: |
+          # timeout 345m заставит бота умереть через 5ч 45мин, чтобы успеть запустить новый
+          MODE="${{ github.event.inputs.mode }}"
+          TOUR_ID="${{ github.event.inputs.tournament_id }}"
+          TEAM_ID="${{ github.event.inputs.team_id }}"
+          PASSWORD="${{ github.event.inputs.password }}"
+
+          if [[ "$MODE" == "matchmaking" ]]; then
+              echo "🤖 Running matchmaking mode..."
+              timeout 345m python3 -u user_interface.py matchmaking
+
+          elif [[ "$MODE" == "tournament" ]]; then
+              if [[ -z "$TOUR_ID" ]]; then
+                  echo "⚠️ Tournament ID missing. Running default matchmaking instead."
+                  timeout 345m python3 -u user_interface.py matchmaking
+              else
+                  echo "🤖 Joining tournament: $TOUR_ID"
+                  ARGS="$TOUR_ID"
+                  [[ -n "$TEAM_ID" ]] && ARGS="$ARGS $TEAM_ID"
+                  [[ -n "$PASSWORD" ]] && ARGS="$ARGS $PASSWORD"
+                  
+                  timeout 345m python3 -u user_interface.py tournament $ARGS
+              fi
+          else
+              echo "🤖 Running normal mode..."
+              timeout 345m python3 -u user_interface.py
+          fi
+
+      # 🔥 ИСПРАВЛЕННЫЙ ХАК (добавлен блок inputs)
+      - name: Trigger Next Run
+        if: always() # Сработает, даже если бот упал или был убит по таймауту
+        uses: actions/github-script@v7
+        with:
+          script: |
+            console.log("🔄 Бот завершил работу. Запускаем новую копию...");
+            try {
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'run.yml',
+                ref: 'main',
+                inputs: {
+                  mode: '${{ github.event.inputs.mode || 'matchmaking' }}',
+                  tournament_id: '${{ github.event.inputs.tournament_id || '' }}',
+                  team_id: '${{ github.event.inputs.team_id || '' }}',
+                  password: '${{ github.event.inputs.password || '' }}'
+                }
+              });
+              console.log("✅ Запрос на перезапуск успешно отправлен!");
+            } catch (error) {
+              console.error("❌ Ошибка при перезапуске:", error);
+            }
