@@ -114,7 +114,7 @@ jobs:
       # 🔥 ИСПРАВЛЕННЫЙ ХАК (добавлен блок inputs)
       - name: Trigger Next Run
         if: always() # Сработает, даже если бот упал или был убит по таймауту
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             console.log("🔄 Бот завершил работу. Запускаем новую копию...");
