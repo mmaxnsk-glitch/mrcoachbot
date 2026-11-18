@@ -69,9 +69,17 @@ class LichessGame:
         self.scores: list[chess.engine.PovScore] = []
         self.last_message = "No eval available yet."
         self.last_pv: list[chess.Move] = []
+        self.skill_level: int | None = None
 
     @classmethod
-    async def acreate(cls, api: API, config: Config, username: str, game_info: GameInformation) -> "LichessGame":
+    async def acreate(
+        cls,
+        api: API,
+        config: Config,
+        username: str,
+        game_info: GameInformation,
+        skill_level: int | None = None,
+    ) -> "LichessGame":
         board = cls._get_board(game_info)
         is_white = game_info.white_name == username
         engine_key = cls._get_engine_key(config, board, is_white, game_info)
@@ -81,7 +89,10 @@ class LichessGame:
             syzygy_config,
             game_info.black_opponent if is_white else game_info.white_opponent,
         )
-        return cls(api, config, username, game_info, board, syzygy_config, engine_key, engine)
+        instance = cls(api, config, username, game_info, board, syzygy_config, engine_key, engine)
+        if skill_level is not None:
+            await instance.set_skill_level(skill_level)
+        return instance
 
     @staticmethod
     def _get_board(game_info: GameInformation) -> chess.Board:
@@ -152,6 +163,13 @@ class LichessGame:
                 return config.syzygy["atomic"]
             case _:
                 return SyzygyConfig(False, [], 0, False)
+
+    async def set_skill_level(self, level: int) -> bool:
+        """Меняет Skill Level только для этого экземпляра игры."""
+        ok = await self.engine.set_uci_option("Skill Level", level)
+        if ok:
+            self.skill_level = level
+        return ok
 
     async def make_move(self) -> LichessMove:
         for move_source in self.move_sources:
