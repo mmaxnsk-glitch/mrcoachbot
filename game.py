@@ -9,11 +9,21 @@ from lichess_game import LichessGame
 
 
 class Game:
-    def __init__(self, api: API, config: Config, username: str, game_id: str) -> None:
+    def __init__(
+        self,
+        api: API,
+        config: Config,
+        username: str,
+        game_id: str,
+        game_manager,
+        skill_level: int | None = None,
+    ) -> None:
         self.api = api
         self.config = config
         self.username = username
         self.game_id = game_id
+        self.game_manager = game_manager
+        self.skill_level = skill_level
 
         self.takeback_count = 0
         self.was_aborted = False
@@ -26,8 +36,12 @@ class Game:
         game_stream_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         self._task = asyncio.create_task(self.api.get_game_stream(self.game_id, game_stream_queue))
         info = GameInformation.from_game_full_event(await game_stream_queue.get())
-        lichess_game = await LichessGame.acreate(self.api, self.config, self.username, info)
-        chatter = Chatter(self.api, self.config, self.username, info, lichess_game)
+        lichess_game = await LichessGame.acreate(
+            self.api, self.config, self.username, info, skill_level=self.skill_level
+        )
+        chatter = Chatter(
+            self.api, self.config, self.username, info, lichess_game, self.game_manager
+        )
 
         self._print_game_information(info)
 
