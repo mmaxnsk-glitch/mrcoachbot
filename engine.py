@@ -121,3 +121,15 @@ class Engine:
             print("Engine could not be terminated cleanly.")
 
         self.transport.close()
+
+
+
+
+    async def set_uci_option(self, name: str, value) -> bool:
+        """Меняет UCI-опцию у запущенного движка.
+        Возвращает True при успехе, False — если опция не поддерживается."""
+        if name not in self.engine.options:
+            print(f'UCI option "{name}" is not supported by the engine.')
+            return False
+        await self.engine.configure({name: value})
+        return True
