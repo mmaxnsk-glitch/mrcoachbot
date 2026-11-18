@@ -23,18 +23,26 @@ COMMANDS = {
     "ram": "Displays the amount of system memory (RAM).",
     "takeback": "Shows how many takebacks are allowed and how many the opponent has used.",
     "variants": "Shows the chess variants the bot can play.",
+    "skilllevel": "Set engine skill level for this game only (casual games only, e.g. !skilllevel 5).",
 }
 SPECTATOR_COMMANDS = {"pv": "Shows the principal variation (best line of play) from the latest position."}
 
 
 class Chatter:
     def __init__(
-        self, api: API, config: Config, username: str, game_information: GameInformation, lichess_game: LichessGame
+        self,
+        api: API,
+        config: Config,
+        username: str,
+        game_information: GameInformation,
+        lichess_game: LichessGame,
+        game_manager,
     ) -> None:
         self.api = api
         self.username = username
         self.game_info = game_information
         self.lichess_game = lichess_game
+        self.game_manager = game_manager
         self.opponent_username = self.game_info.black_name if lichess_game.is_white else self.game_info.white_name
         self.challenge_message = self._get_challenge_message(config)
         self.variants_message = self._get_variants_message(config)
@@ -142,6 +150,61 @@ class Chatter:
                 await self._send_takeback_message(chat_message.room, takeback_count, max_takebacks)
             case "variants":
                 await self.api.send_chat_message(self.game_info.id_, chat_message.room, self.variants_message)
+            case command if command.startswith("skilllevel"):
+                # Спектаторы не могут менять уровень — молча игнорируем
+                if chat_message.room != "player":
+                    return
+
+                # Только товарищеские игры
+                if self.game_info.rated or self.game_info.tournament_id is not None:
+                    await self.api.send_chat_message(
+                        self.game_info.id_,
+                        chat_message.room,
+                        "Skill level can only be changed in casual (unrated) games.",
+                    )
+                    return
+
+                words = chat_message.text.split()
+                if len(words) != 2:
+                    await self.api.send_chat_message(
+                        self.game_info.id_,
+                        chat_message.room,
+                        "Usage: !skilllevel <number 0-20> (e.g. !skilllevel 5)",
+                    )
+                    return
+
+                try:
+                    level = int(words[1])
+                except ValueError:
+                    await self.api.send_chat_message(
+                        self.game_info.id_,
+                        chat_message.room,
+                        "Skill level must be an integer.",
+                    )
+                    return
+
+                if not 0 <= level <= 20:
+                    await self.api.send_chat_message(
+                        self.game_info.id_,
+                        chat_message.room,
+                        "Skill level must be between 0 and 20.",
+                    )
+                    return
+
+                ok = await self.lichess_game.set_skill_level(level)
+                if ok:
+                    self.game_manager.set_skill_level(self.game_info.id_, level)
+                    await self.api.send_chat_message(
+                        self.game_info.id_,
+                        chat_message.room,
+                        f"Skill level set to {level} for this game.",
+                    )
+                else:
+                    await self.api.send_chat_message(
+                        self.game_info.id_,
+                        chat_message.room,
+                        "This engine does not support Skill Level.",
+                    )
             case command if command.startswith("help"):
                 commands = COMMANDS if chat_message.room == "player" else COMMANDS | SPECTATOR_COMMANDS
                 words = chat_message.text.split()
