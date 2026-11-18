@@ -1,4 +1,6 @@
 import asyncio
+import json
+import os
 from asyncio import Event, Task
 from collections import deque
 from typing import Any
@@ -37,10 +39,38 @@ class GameManager:
         self.unstarted_tournaments: dict[str, Tournament] = {}
         self.tournaments_to_join: deque[Tournament] = deque()
         self.tournaments: dict[str, Tournament] = {}
+        self.skill_levels_file = "game_skill_levels.json"
+        self.skill_levels: dict[str, int] = self._load_skill_levels()
 
     def stop(self):
         self.is_running = False
         self.changed_event.set()
+
+    def _load_skill_levels(self) -> dict[str, int]:
+        if not os.path.exists(self.skill_levels_file):
+            return {}
+        try:
+            with open(self.skill_levels_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    return {str(k): int(v) for k, v in data.items()}
+        except (json.JSONDecodeError, OSError, ValueError):
+            pass
+        return {}
+
+    def _save_skill_levels(self) -> None:
+        try:
+            with open(self.skill_levels_file, "w", encoding="utf-8") as f:
+                json.dump(self.skill_levels, f)
+        except OSError as e:
+            print(f"Could not save skill levels: {e}")
+
+    def get_skill_level(self, game_id: str) -> int | None:
+        return self.skill_levels.get(game_id)
+
+    def set_skill_level(self, game_id: str, level: int) -> None:
+        self.skill_levels[game_id] = level
+        self._save_skill_levels()
 
     async def run(self) -> None:
         while self.is_running:
@@ -240,7 +270,14 @@ class GameManager:
             self.tournaments[tournament.id_] = tournament
             print(f'External joined tournament "{tournament.name}" detected.')
 
-        game = Game(self.api, self.config, self.username, game_event["id"])
+        game = Game(
+            self.api,
+            self.config,
+            self.username,
+            game_event["id"],
+            game_manager=self,
+            skill_level=self.get_skill_level(game_event["id"]),
+        )
         task = asyncio.create_task(game.run())
         task.add_done_callback(self._task_callback)
         self.tasks[task] = game
