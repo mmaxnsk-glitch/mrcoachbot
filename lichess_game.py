@@ -186,7 +186,7 @@ class LichessGame:
                     self._resign(move_response.trusted_eval, move_response.is_lost),
                 )
 
-        move, info = await self.engine.make_move(self.board, *self.engine_times)
+        move, info = await self.engine.make_move(self.board, *self.engine_times, self.skill_level)
 
         if "score" in info:
             self.scores.append(info["score"])
