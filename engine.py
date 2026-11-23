@@ -77,9 +77,26 @@ class Engine:
         return self.engine.id["name"]
 
     async def make_move(
-        self, board: chess.Board, white_time: float, black_time: float, increment: float
+        self, board: chess.Board, white_time: float, black_time: float, increment: float, skill_level: int | None = None
     ) -> tuple[chess.Move, chess.engine.InfoDict]:
-        if len(board.move_stack) < 2:
+        
+        # НОВАЯ ЛОГИКА ДЛЯ СЛАБЫХ УРОВНЕЙ (0-10)
+        if skill_level is not None and skill_level <= 10:
+            if skill_level <= 2:
+                limit = chess.engine.Limit(depth=1, nodes=100)
+            elif skill_level <= 4:
+                limit = chess.engine.Limit(depth=2, nodes=500)
+            elif skill_level <= 6:
+                limit = chess.engine.Limit(depth=3, nodes=1500)
+            elif skill_level <= 8:
+                limit = chess.engine.Limit(depth=4, nodes=3000)
+            else: # 9 и 10
+                limit = chess.engine.Limit(depth=5, nodes=5000)
+            
+            ponder = False
+            
+        # Старая логика для начала игры или сильных уровней (11-20)
+        elif len(board.move_stack) < 2:
             time_limit = 10.0 if self.opponent.is_engine else 5.0
             if self.limit_config.time:
                 time_limit = min(time_limit, self.limit_config.time)
@@ -104,7 +121,6 @@ class Engine:
             raise RuntimeError("Engine could not make a move!")
 
         return result.move, result.info
-
     async def start_pondering(self, board: chess.Board) -> None:
         if self.ponder:
             await self.engine.analysis(board)
