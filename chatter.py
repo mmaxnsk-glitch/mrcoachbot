@@ -23,7 +23,7 @@ COMMANDS = {
     "ram": "Displays the amount of system memory (RAM).",
     "takeback": "Shows how many takebacks are allowed and how many the opponent has used.",
     "variants": "Shows the chess variants the bot can play.",
-    "skilllevel": "Set engine skill level for this game only (from -20 to 20, e.g. !skilllevel -5).",
+    "skilllevel": "Set engine skill level for this game only (from 0 to 20, e.g. !skilllevel 5).",
 }
 SPECTATOR_COMMANDS = {"pv": "Shows the principal variation (best line of play) from the latest position."}
 
@@ -169,7 +169,7 @@ class Chatter:
                     await self.api.send_chat_message(
                         self.game_info.id_,
                         chat_message.room,
-                        "Usage: !skilllevel <number -20 to 20> (e.g. !skilllevel 5)",
+                        "Usage: !skilllevel <number 0 to 20> (e.g. !skilllevel 5)",
                     )
                     return
 
@@ -183,11 +183,11 @@ class Chatter:
                     )
                     return
 
-                if not -20 <= level <= 20:
+                if not 0 <= level <= 20:
                     await self.api.send_chat_message(
                         self.game_info.id_,
                         chat_message.room,
-                        "Skill level must be between -20 and 20.",
+                        "Skill level must be between 0 and 20.",
                     )
                     return
 
