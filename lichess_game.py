@@ -172,20 +172,26 @@ class LichessGame:
         return ok
 
     async def make_move(self) -> LichessMove:
-        for move_source in self.move_sources:
-            if move_response := await move_source():
-                self.board.push(move_response.move)
-                await self.engine.start_pondering(self.board)
+        # Если уровень слабый (0-10), полностью отключаем книги и базы данных
+        # (чтобы бот не играл идеально в дебюте и эндшпиле)
+        use_books_and_bases = self.skill_level is None or self.skill_level > 10
 
-                print(f"{move_response.public_message} {move_response.private_message}".strip())
-                self.last_message = move_response.public_message
-                self.last_pv = move_response.pv
-                return LichessMove(
-                    move_response.move.uci(),
-                    self._offer_draw(move_response.trusted_eval, move_response.is_draw),
-                    self._resign(move_response.trusted_eval, move_response.is_lost),
-                )
+        if use_books_and_bases:
+            for move_source in self.move_sources:
+                if move_response := await move_source():
+                    self.board.push(move_response.move)
+                    await self.engine.start_pondering(self.board)
 
+                    print(f"{move_response.public_message} {move_response.private_message}".strip())
+                    self.last_message = move_response.public_message
+                    self.last_pv = move_response.pv
+                    return LichessMove(
+                        move_response.move.uci(),
+                        self._offer_draw(move_response.trusted_eval, move_response.is_draw),
+                        self._resign(move_response.trusted_eval, move_response.is_lost),
+                    )
+
+        # Если книги отключены (или в них нет хода), идем к движку
         move, info = await self.engine.make_move(self.board, *self.engine_times, self.skill_level)
 
         if "score" in info:
@@ -201,7 +207,7 @@ class LichessGame:
             await self.engine.start_pondering(self.board)
 
         return LichessMove(move.uci(), self._offer_draw(), self._resign())
-
+        
     def update(self, game_state_event: dict[str, Any]) -> bool:
         self.white_time = game_state_event["wtime"] / 1000
         self.black_time = game_state_event["btime"] / 1000
