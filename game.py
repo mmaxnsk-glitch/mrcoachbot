@@ -110,6 +110,14 @@ class Game:
 
     async def _make_move(self, lichess_game: LichessGame, chatter: Chatter) -> None:
         lichess_move = await lichess_game.make_move()
+        
+        # --- АВТОМАТИЧЕСКИЙ ТРЕНЕР ---
+        # Отправляем комментарий только если игра товарищеская (casual) и не турнир
+        if not lichess_game.game_info.rated and lichess_game.game_info.tournament_id is None:
+            if lichess_game.coach_message:
+                await self.api.send_chat_message(self.game_id, "player", lichess_game.coach_message)
+        # ------------------------------
+        
         if lichess_move.resign:
             await self.api.resign_game(self.game_id)
         else:
