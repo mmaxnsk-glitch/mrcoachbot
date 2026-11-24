@@ -70,6 +70,7 @@ class LichessGame:
         self.last_message = "No eval available yet."
         self.last_pv: list[chess.Move] = []
         self.skill_level: int | None = None
+        self.coach_message: str | None = None
 
     @classmethod
     async def acreate(
@@ -173,7 +174,6 @@ class LichessGame:
 
     async def make_move(self) -> LichessMove:
         # Если уровень слабый (0-10), полностью отключаем книги и базы данных
-        # (чтобы бот не играл идеально в дебюте и эндшпиле)
         use_books_and_bases = self.skill_level is None or self.skill_level > 10
 
         if use_books_and_bases:
@@ -191,11 +191,35 @@ class LichessGame:
                         self._resign(move_response.trusted_eval, move_response.is_lost),
                     )
 
-        # Если книги отключены (или в них нет хода), идем к движку
+        # Идем к движку
         move, info = await self.engine.make_move(self.board, *self.engine_times, self.skill_level)
 
+        # --- ЛОГИКА ТРЕНЕРА ---
+        self.coach_message = None
         if "score" in info:
+            new_score = info["score"].relative
+            
+            if self.scores:
+                prev_score = self.scores[-1].relative
+                prev_cp = prev_score.score(mate_score=10000) if prev_score else 0
+                new_cp = new_score.score(mate_score=10000) if new_score else 0
+                
+                # Считаем разницу в сотых долях пешки
+                loss = new_cp - prev_cp 
+                
+                if loss >= 300:
+                    self.coach_message = f"Blunder! You lost about {loss/100:.1f} pawns of advantage."
+                elif loss >= 100:
+                    self.coach_message = f"Mistake. You lost about {loss/100:.1f} pawns."
+                elif loss >= 50:
+                    self.coach_message = f"Inaccuracy. You lost about {loss/100:.1f} pawns."
+                elif loss <= -300:
+                    self.coach_message = "Brilliant move! You completely turned the tables!"
+                elif loss <= -100:
+                    self.coach_message = "Great move! You improved your position significantly."
+            
             self.scores.append(info["score"])
+        # -----------------------
 
         message = f"Engine:  {self._format_move(move):14} {self._format_engine_info(info)}"
         print(message)
