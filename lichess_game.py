@@ -173,6 +173,9 @@ class LichessGame:
         return ok
 
     async def make_move(self) -> LichessMove:
+        # ВОТ СЮДА ДОБАВЛЯЕМ ЭТУ СТРОКУ (сразу после объявления метода)
+        self.coach_message = None 
+        
         # Если уровень слабый (0-10), полностью отключаем книги и базы данных
         use_books_and_bases = self.skill_level is None or self.skill_level > 10
 
@@ -195,7 +198,7 @@ class LichessGame:
         move, info = await self.engine.make_move(self.board, *self.engine_times, self.skill_level)
 
         # --- ЛОГИКА ТРЕНЕРА ---
-        self.coach_message = None
+        # (Здесь строки self.coach_message = None больше НЕТ, мы ее перенесли наверх)
         if "score" in info:
             new_score = info["score"].relative
             
