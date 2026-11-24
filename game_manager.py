@@ -247,6 +247,13 @@ class GameManager:
     def _task_callback(self, task: Task[None]) -> None:
         game = self.tasks.pop(task)
 
+        # --- ОЧИСТКА SKILL LEVEL ---
+        # Если игра завершилась, удаляем её уровень из словаря и сохраняем файл
+        if game.game_id in self.skill_levels:
+            del self.skill_levels[game.game_id]
+            self._save_skill_levels()
+        # ----------------------------
+
         if game.game_id == self.current_matchmaking_game_id:
             self.matchmaking.on_game_finished(game.was_aborted)
             self.current_matchmaking_game_id = None
