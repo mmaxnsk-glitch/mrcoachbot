@@ -1,3 +1,4 @@
+import random
 import os
 import platform
 from collections import defaultdict
@@ -26,6 +27,22 @@ COMMANDS = {
     "skilllevel": "Set engine skill level for this game only (from 0 to 20, e.g. !skilllevel 5).",
 }
 SPECTATOR_COMMANDS = {"pv": "Shows the principal variation (best line of play) from the latest position."}
+
+TROLL_MESSAGES = [
+    "Oh, bless your heart.",
+    "A bold strategy. Let's see how that works out.",
+    "Was that intentional? Asking for a friend.",
+    "I'd say nice move, but my programming prevents lying.",
+    "Interesting choice. Terrible, but interesting.",
+    "Are we playing chess or donating pieces?",
+    "I do appreciate the generosity, but it won't help your rating.",
+    "Let's just pretend that didn't happen, shall we?",
+    "Even my opening book is laughing.",
+    "A classic blunder. Truly, a masterpiece of disaster.",
+    "I see we are skipping the 'thinking' part of the game.",
+    "Bold. Very bold. And incredibly foolish.",
+    "Shall I fetch the resignation form for you?",
+]
 
 
 class Chatter:
