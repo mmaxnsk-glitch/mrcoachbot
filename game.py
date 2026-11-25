@@ -1,9 +1,10 @@
 import asyncio
+import random
 from typing import Any
 
 from api import API
 from botli_dataclasses import GameInformation
-from chatter import Chatter
+from chatter import Chatter, TROLL_MESSAGES
 from config import Config
 from lichess_game import LichessGame
 
@@ -111,12 +112,23 @@ class Game:
     async def _make_move(self, lichess_game: LichessGame, chatter: Chatter) -> None:
         lichess_move = await lichess_game.make_move()
         
-        # --- АВТОМАТИЧЕСКИЙ ТРЕНЕР ---
-        # Отправляем комментарий только если игра товарищеская (casual) и не турнир
+        # --- АВТОМАТИЧЕСКИЙ ТРЕНЕР + БРИТАНСКИЙ ТРОЛЛЬ ---
         if not lichess_game.game_info.rated and lichess_game.game_info.tournament_id is None:
+            message_to_send = ""
+            
+            # 1. Реакция на зевок (Blunder)
             if lichess_game.coach_message:
-                await self.api.send_chat_message(self.game_id, "player", lichess_game.coach_message)
-        # ------------------------------
+                message_to_send = lichess_game.coach_message
+                if "Blunder" in message_to_send and random.random() < 0.5:
+                    message_to_send += f" {random.choice(TROLL_MESSAGES)}"
+            
+            # 2. Реакция на шах
+            elif lichess_game.board.is_check() and random.random() < 0.2:
+                message_to_send = f"Check. {random.choice(TROLL_MESSAGES)}"
+
+            if message_to_send:
+                await self.api.send_chat_message(self.game_id, "player", message_to_send)
+        # -------------------------------------------------
         
         if lichess_move.resign:
             await self.api.resign_game(self.game_id)
